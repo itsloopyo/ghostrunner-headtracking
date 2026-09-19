@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "mod_info": {
+    "name": "GhostrunnerHeadTracking",
+    "version": "0.0.0",
+    "game_id": "ghostrunner"
+  },
+  "strategy": "AsiLoader",
+  "delivery_mode": "manifest",
+
+  "files": [
+    { "source": "vendor/ultimate-asi-loader/dinput8.dll", "target": "winmm.dll", "anchor": "exe_dir" },
+    { "source": "plugins/GhostrunnerHeadTracking.asi", "target": "GhostrunnerHeadTracking.asi", "anchor": "exe_dir" }
+  ],
+
+  "runtime_requirements": [],
+  "dependencies": []
+}
