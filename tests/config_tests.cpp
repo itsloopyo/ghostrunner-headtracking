@@ -292,6 +292,24 @@ void AnOldYawKeyOnEndKeepsTheChordAlone() {
     CHECK(Holds(ReadFileBytes(s.ini()), "YawModeKey=Ctrl+Shift+H"));
 }
 
+// The published builds read a margin of 5 to 40 and kept 10 outside it, which a
+// value typed into CameraUnlock.ini still gets.
+void AMarginOutsideFiveToFortyKeepsTen() {
+    Scratch s("margin");
+    s.Load();
+    const std::string fresh = ReadFileBytes(s.ini());
+    const std::string line = "CollisionMargin=10.0";
+    const auto load_with = [&](const std::string& value) {
+        std::string edited = fresh;
+        edited.replace(edited.find(line), line.size(), "CollisionMargin=" + value);
+        WriteFileBytes(s.ini(), edited);
+        return s.Load().collision_margin;
+    };
+    for (const char* value : {"0.5", "4.9", "40.1"}) CHECK_MSG(load_with(value) == 10.0f, value);
+    CHECK(load_with("5.0") == 5.0f);
+    CHECK(load_with("40.0") == 40.0f);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -312,6 +330,7 @@ int main(int argc, char** argv) {
     AnOldYawKeyOnCtrlStaysPageDown();
     AnUntouchedSettingFollowsDefaultsIni();
     AnOldYawKeyOnEndKeepsTheChordAlone();
+    AMarginOutsideFiveToFortyKeepsTen();
 
     return gr_test::Report();
 }

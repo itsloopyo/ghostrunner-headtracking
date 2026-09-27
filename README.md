@@ -178,8 +178,8 @@ RemoteSmoothing=default
 PositionEnabled=default
 ; true: leaning stops at walls instead of moving the view through them.
 CollisionEnabled=default
-; How far the view is held off a wall when you lean into it, in centimetres.
-; Keep it above 1, the game's near clip distance.
+; How far the view is held off a wall when you lean into it, in centimetres,
+; 5 to 40.
 CollisionMargin=10.0
 ; Which of the game's collision channels the wall check tests against.
 ; CollisionChannel=0

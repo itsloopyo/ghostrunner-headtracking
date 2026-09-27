@@ -37,6 +37,13 @@ constexpr const char* kDisplayName = "Ghostrunner";
 // ETraceTypeQuery holds TraceTypeQuery1 to TraceTypeQuery32.
 constexpr double kMaxTraceChannel = 31;
 
+// A concept row takes the schema's range, and CollisionMargin's is 0 and up,
+// since its unit is each engine's. Every published build read 5 to 40 and kept
+// the default outside it; a margin inside the camera's near clip distance lets
+// the wall the view is held off be culled.
+constexpr float kMinCollisionMargin = 5.0f;
+constexpr float kMaxCollisionMargin = 40.0f;
+
 // The keys every build before the canonical format bound in code to the toggle
 // and the mode cycle, which it refused as the yaw key.
 constexpr int kVkEnd = 0x23;
@@ -146,8 +153,8 @@ cfg::ConfigTable<Config> Table() {
         .Writable()
         .Concept<Concept::CollisionEnabled>(&Config::collision_enabled)
         .Concept<Concept::CollisionMargin>(&Config::collision_margin)
-        .Comment("How far the view is held off a wall when you lean into it, in centimetres.\n"
-                 "Keep it above 1, the game's near clip distance.")
+        .Comment("How far the view is held off a wall when you lean into it, in centimetres,\n"
+                 "5 to 40.")
         .Concept<Concept::CollisionChannel>(&Config::collision_channel)
         .Engine()
         .Concept<Concept::CollisionReleaseSmoothing>(&Config::collision_release_smoothing)
@@ -208,7 +215,14 @@ Config Load(const std::wstring& exe_dir, cfg::DefaultsFile defaults) {
     for (const std::string& line : result.log) Log::Line("config: %s", line.c_str());
     if (!result.reason.empty()) Log::Line("config: %s", result.reason.c_str());
     Log::Line("config: %s", cfg::ConfigLoadStatusName(result.status));
-    return result.config;
+    Config config = result.config;
+    if (!(config.collision_margin >= kMinCollisionMargin && config.collision_margin <= kMaxCollisionMargin)) {
+        const float kept = Config{}.collision_margin;
+        Log::Line("config: [Position] CollisionMargin=%g is outside 5 to 40, so the lean keeps %g", config.collision_margin,
+                  kept);
+        config.collision_margin = kept;
+    }
+    return config;
 }
 
 void SaveWorldSpaceYaw(bool world_space_yaw) {
