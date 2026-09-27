@@ -53,6 +53,7 @@ set(MOD_SOURCES
     src/ue_reflect.cpp
     src/ue_vm.cpp
     src/config.cpp
+    src/legacy_config/legacy_config.cpp
     src/crash_report.cpp
     src/builds/build_registry.cpp
     src/builds/steam_offsets.cpp
@@ -217,6 +218,7 @@ if(GR_BUILD_TESTS)
     add_executable(gr_config_tests
         tests/config_tests.cpp
         src/config.cpp
+        src/legacy_config/legacy_config.cpp
     )
     target_include_directories(gr_config_tests PRIVATE
         src
@@ -225,6 +227,43 @@ if(GR_BUILD_TESTS)
     )
     target_link_libraries(gr_config_tests PRIVATE cameraunlock)
     add_test(NAME gr_config_tests COMMAND gr_config_tests)
+
+    # The differential test for the config conversion. The oracle is the reader
+    # of the newest published build (the dev pre-release, 84353ca), compiled from
+    # its own sources with the mod's and core's namespaces renamed, so it links
+    # beside today's code and nothing in it can resolve to a symbol of the mod
+    # under test.
+    add_library(gr_config_oracle STATIC
+        tests/config_differential/oracle_api.cpp
+        tests/config_differential/oracle/src/config.cpp
+        cameraunlock-core/cpp/src/config/ini_reader.cpp
+        cameraunlock-core/cpp/src/config/value_guards.cpp
+        cameraunlock-core/cpp/src/logging/file_log.cpp
+    )
+    target_include_directories(gr_config_oracle PRIVATE
+        tests/config_differential/oracle/src
+        cameraunlock-core/cpp/include
+    )
+    target_compile_definitions(gr_config_oracle PRIVATE
+        gr_ht=gr_ht_oracle
+        cameraunlock=gr_oracle_core
+    )
+
+    add_executable(gr_config_differential_tests
+        tests/config_differential/differential_tests.cpp
+        src/config.cpp
+        src/legacy_config/legacy_config.cpp
+    )
+    target_include_directories(gr_config_differential_tests PRIVATE
+        src
+        tests
+        tests/config_differential
+        cameraunlock-core/cpp/include
+    )
+    target_link_libraries(gr_config_differential_tests PRIVATE gr_config_oracle cameraunlock bcrypt)
+    target_compile_definitions(gr_config_differential_tests PRIVATE
+        GR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    add_test(NAME gr_config_differential_tests COMMAND gr_config_differential_tests)
 
     # The walk from an engine-supplied object index to its table slot, against a
     # synthetic object table in the test process's own memory - so the bounds
