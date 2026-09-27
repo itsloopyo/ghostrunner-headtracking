@@ -245,7 +245,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## cameraunlock-core
 
-- **Version:** commit `ba57f8488cf98be2148f4f6640125c5d1e5fb3ca`
+- **Version:** commit `de8d03a06f8184253b61f0836a5e3ce9d9003934`
 - **License:** MIT
 - **Upstream:** https://github.com/itsloopyo/cameraunlock-core
 - **Usage:** Shared head-tracking runtime (UDP receiver, pose processing, lean clamp, hook manager, Unreal helpers). Git submodule at `cameraunlock-core/`, statically linked.
