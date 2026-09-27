@@ -14,13 +14,5 @@
   ],
 
   "runtime_requirements": [],
-  "dependencies": [],
-
-  "config": {
-    "path": "CameraUnlock.ini",
-    "anchor": "exe_dir",
-    "legacy_source": "HeadTracking.ini",
-    "canonical_since": "0.1.0",
-    "per_game": {}
-  }
+  "dependencies": []
 }
