@@ -11,6 +11,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include <windows.h>
@@ -756,11 +757,13 @@ void CmdShotLog(const std::string&, std::uintptr_t) {
 
 // The poller cannot be reached from here: it reads GetAsyncKeyState behind a
 // foreground guard, so a key only counts when the game itself has focus. This
-// runs the same three functions a key press runs.
+// runs the same three functions a key press runs. The console runs on the
+// render thread and the mode and yaw actions save CameraUnlock.ini, which the
+// owner forbids from a per-frame path, so those run on a thread of their own.
 void CmdHotkey(const std::string& rest, std::uintptr_t) {
     if (rest == "toggle") hotkeys::ToggleTracking();
-    else if (rest == "mode") hotkeys::CycleTrackingMode();
-    else if (rest == "yaw") hotkeys::ToggleYawMode();
+    else if (rest == "mode") std::thread(hotkeys::CycleTrackingMode).detach();
+    else if (rest == "yaw") std::thread(hotkeys::ToggleYawMode).detach();
     else Log::Line("dev: hotkey wants toggle | mode | yaw");
 }
 
