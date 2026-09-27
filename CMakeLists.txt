@@ -92,7 +92,7 @@ set_target_properties(GhostrunnerHeadTracking PROPERTIES
 )
 
 # Behaviour locks for the pure-function parts: the caller gate, the axis
-# conversion, the projection, the trace frames, the config reader and the UDP
+# conversion, the projection, the trace frames, the config and the UDP
 # link walk. Separate executables that link
 # none of the hook or Windows machinery, so `pixi run test` runs with no game
 # installed.
@@ -211,10 +211,8 @@ if(GR_BUILD_TESTS)
     target_link_libraries(gr_kismet_trace_tests PRIVATE cameraunlock cameraunlock_unreal)
     add_test(NAME gr_kismet_trace_tests COMMAND gr_kismet_trace_tests)
 
-    # What HeadTracking.ini is allowed to put into the camera. Writes real INI
-    # files into a temp directory and reads them back through the same
-    # GetPrivateProfile* path the game uses, because that reader's parsing rules
-    # are the thing being pinned.
+    # The canonical config, the committed file and the toggles' saves. Also the
+    # renderer behind `pixi run render-config` (--render-config <path>).
     add_executable(gr_config_tests
         tests/config_tests.cpp
         src/config.cpp
@@ -226,6 +224,7 @@ if(GR_BUILD_TESTS)
         cameraunlock-core/cpp/include
     )
     target_link_libraries(gr_config_tests PRIVATE cameraunlock)
+    target_compile_definitions(gr_config_tests PRIVATE GR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     add_test(NAME gr_config_tests COMMAND gr_config_tests)
 
     # The differential test for the config conversion. The oracle is the reader
@@ -264,6 +263,26 @@ if(GR_BUILD_TESTS)
     target_compile_definitions(gr_config_differential_tests PRIVATE
         GR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     add_test(NAME gr_config_differential_tests COMMAND gr_config_differential_tests)
+
+    # Core's canonical config lint over the committed file and every file the
+    # differential test migrated, which it writes beside itself under migrated\.
+    add_test(NAME gr_config_lint COMMAND node
+        ${CMAKE_SOURCE_DIR}/tests/config_differential/lint-migrated.mjs
+        $<TARGET_FILE_DIR:gr_config_differential_tests>/migrated)
+    set_tests_properties(gr_config_lint PROPERTIES DEPENDS gr_config_differential_tests)
+
+    # Which bindings in two actions' key lists one press fires together, the rule
+    # the hotkey registration uses to keep a key to one action. Header-only over
+    # core's KeyBinding, so it needs no keyboard.
+    add_executable(gr_hotkey_overlap_tests
+        tests/hotkey_overlap_tests.cpp
+    )
+    target_include_directories(gr_hotkey_overlap_tests PRIVATE
+        src
+        tests
+        cameraunlock-core/cpp/include
+    )
+    add_test(NAME gr_hotkey_overlap_tests COMMAND gr_hotkey_overlap_tests)
 
     # The walk from an engine-supplied object index to its table slot, against a
     # synthetic object table in the test process's own memory - so the bounds

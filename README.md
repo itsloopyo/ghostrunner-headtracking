@@ -50,7 +50,7 @@ From the extracted ZIP:
 1. Copy `vendor\ultimate-asi-loader\dinput8.dll` into that folder and rename it to `winmm.dll`. `WINMM.dll` is an import the shipping executable already has, so it is the proxy name the loader has to use here.
 2. Copy `plugins\GhostrunnerHeadTracking.asi` into the same folder.
 
-`HeadTracking.ini` and `GhostrunnerHeadTracking.log` are written to that folder on first launch.
+`CameraUnlock.ini` and `GhostrunnerHeadTracking.log` are written to that folder on first launch.
 
 ## Setting Up OpenTrack
 
@@ -86,7 +86,7 @@ A phone on WiFi is a remote connection and gets `RemoteSmoothing`. So does a tra
 
 ## Controls
 
-Two equivalent binding sets - use whichever your keyboard has:
+Both columns do the same thing. Use whichever your keyboard has. The keys are set in `[Hotkeys]` in `CameraUnlock.ini` (see Configuration), where each action lists every key that fires it.
 
 | Action              | Nav-cluster | Chord          |
 |---------------------|-------------|----------------|
@@ -103,41 +103,109 @@ Ghostrunner binds `T` to the upgrade menu and leaves the rest of that keyboard c
 3. Rotational tracking disabled, positional tracking enabled
 4. Back to normal
 
-**Toggle yaw mode** switches which axis head yaw turns about. Horizon-locked is the default: yaw goes about the world up-axis, so looking at the floor and turning your head pans across it. Camera-local turns about the camera's own up-axis instead, which leans the horizon when the camera is pitched steeply. It applies for the session and is not written back to the file.
+The mode is saved to `CameraUnlock.ini` as you change it, and the game starts in it next time.
+
+`End` / `Ctrl+Shift+Y` turns tracking off and on for this session only. Whether tracking is on when the game starts is `EnableOnStartup` in `CameraUnlock.ini`.
+
+**Toggle yaw mode** switches which axis head yaw turns about. Horizon-locked is the default: yaw goes about the world up-axis, so looking at the floor and turning your head pans across it. Camera-local turns about the camera's own up-axis instead, which leans the horizon when the camera is pitched steeply. The choice is saved to `CameraUnlock.ini` as you change it, and the game starts in it next time.
 
 ## Configuration
 
-`HeadTracking.ini` sits next to the game exe, in `Ghostrunner\Binaries\Win64\`, and is written with the defaults on first launch. Delete it to get the defaults back.
+<!-- cameraunlock:config -->
+The mod reads its settings from `Ghostrunner\Binaries\Win64\CameraUnlock.ini` in the game folder, and creates the file when it starts and finds none. Edit it with any text editor.
+
+A setting set to `default` takes its value from `Defaults.ini`, which every head tracking mod that keeps its settings in `CameraUnlock.ini` reads. Head tracking mods that keep their settings in another file do not read it. Writing a value in place of `default` changes that setting for this game only. When the mod saves a setting that a hotkey changed in game, it writes the new value in place of `default`, so that setting no longer follows `Defaults.ini` in this game until you set it to `default` again.
+
+`Defaults.ini` is `%AppData%\CameraUnlock\Defaults.ini` on Windows; `$XDG_CONFIG_HOME/CameraUnlock/Defaults.ini` on Linux, or `~/.config/CameraUnlock/Defaults.ini` where `XDG_CONFIG_HOME` is not set, under Wine and Proton too; and `~/Library/Application Support/CameraUnlock/Defaults.ini` on macOS. The mod's log, where it writes one, names the file it read.
+
+When the mod starts and finds no `Defaults.ini`, it creates one holding the built-in values, unless Windows runs the game as a packaged app. The mod never changes `Defaults.ini` after that. Edit it with any text editor.
+
+The built-in value of each setting set to `default` below:
+
+- `UdpPort=4242`
+- `EnableOnStartup=true`
+- `WorldSpaceYaw=true`
+- `RotationEnabled=true`
+- `LocalSmoothing=0.0`
+- `RemoteSmoothing=0.15`
+- `PositionEnabled=true`
+- `CollisionEnabled=true`
+- `CollisionReleaseSmoothing=0.9`
+- `ToggleKey=End, Ctrl+Shift+Y`
+- `CycleTrackingModeKey=PageUp, Ctrl+Shift+G`
+- `YawModeKey=PageDown, Ctrl+Shift+H`
+
+With every setting at its default, the file reads:
 
 ```ini
-[Network]
-; UDP port the tracker sends to. 4242 is the OpenTrack default.
-Port=4242
+; Ghostrunner head tracking settings.
+; Comments start with ; and go on their own line. Text after a value is part of the value.
+; Hotkeys are key names such as End, PageUp or Ctrl+Shift+Y. Separate several with commas; leave empty for none.
+; A setting set to default takes its value from Defaults.ini, which every head tracking mod
+; that keeps its settings in CameraUnlock.ini reads: %AppData%\CameraUnlock\Defaults.ini on
+; Windows, $XDG_CONFIG_HOME/CameraUnlock/Defaults.ini (normally ~/.config/CameraUnlock) on
+; Linux, under Wine and Proton too, and ~/Library/Application Support/CameraUnlock/Defaults.ini
+; on macOS. The log names the file it read. Write a value instead of default to change that
+; setting for this game only.
 
-[Tracking]
-; Smoothing, 0.0 (none) to 1.0 (heaviest). LocalSmoothing applies to a
-; tracker sending to 127.0.0.1; RemoteSmoothing to any other address,
-; including this PC's own LAN address.
-LocalSmoothing=0.00
-RemoteSmoothing=0.15
+[CameraUnlock]
+; Written by the mod. Leave this section in place.
+ConfigFormat=1
+
+[Network]
+; UDP port the mod receives tracker data on (OpenTrack protocol).
+UdpPort=default
 
 [General]
-; 1 = head yaw turns about the world's up axis (horizon stays level).
-; 0 = about the camera's own up axis. Page Down (or Ctrl+Shift+H)
-; toggles this for the session.
-WorldSpaceYaw=1
+; true: head tracking is on when the game starts. ToggleKey turns it on and off.
+EnableOnStartup=default
+; true: yaw turns around the world's up axis. false: around the camera's own up axis.
+WorldSpaceYaw=default
+; true: turning your head turns the view.
+; Tracking mode at startup, with PositionEnabled. The mode hotkey changes both.
+RotationEnabled=default
 
-[Camera]
-; Stop a positional lean from putting the view inside walls.
-CollisionEnabled=1
-; Distance held off a surface, in centimetres (5 to 40).
+[Smoothing]
+; Smoothing when the tracker runs on this PC. 0 is the least, 1 the most.
+LocalSmoothing=default
+; Smoothing when the tracker is another device on the network, such as a phone.
+; 0 is the least, 1 the most.
+RemoteSmoothing=default
+
+[Position]
+; true: moving your head moves the view.
+; Tracking mode at startup, with RotationEnabled. The mode hotkey changes both.
+PositionEnabled=default
+; true: leaning stops at walls instead of moving the view through them.
+CollisionEnabled=default
+; How far the view is held off a wall when you lean into it, in centimetres.
+; Keep it above 1, the game's near clip distance.
 CollisionMargin=10.0
+; Which of the game's collision channels the wall check tests against.
+; CollisionChannel=0
+; How gently the view eases back out after a wall stopped a lean.
+; 0 is the quickest, 1 the slowest.
+CollisionReleaseSmoothing=default
 
 [Hotkeys]
-; Virtual-key codes. End (toggle tracking), Page Up (cycle tracking
-; mode) and the Ctrl+Shift chords (Y, G, H) are fixed.
-YawMode=0x22
+; Turns head tracking on and off.
+ToggleKey=default
+; Changes the tracking mode: rotation and position, rotation only, position only.
+CycleTrackingModeKey=default
+; Switches yaw between the world's up axis and the camera's own (WorldSpaceYaw).
+YawModeKey=default
+
+[Aim]
+; Which of the game's collision channels the aim trace tests against, 0 to 31. The
+; trace finds where the aim lands, so the crosshair can sit on that point.
+; AimTraceChannel=0
+
+[Dev]
+; For development. true: run the commands in HeadTracking.devcmd beside the game's
+; executable.
+DevCommands=false
 ```
+<!-- /cameraunlock:config -->
 
 ### Field of view
 
@@ -163,7 +231,7 @@ A windowed game is moved once to the center of the desktop work area on the moni
 
 - You are in a menu, the pause menu, a cutscene, photo mode, dead, or loading. By design the view is left alone in all of those, and the log names which one.
 - Something else has the tracker port. `link: UDP 4242 waiting-for-port` is the mod waiting for it, and the `udp: Failed to bind UDP port 4242` line above it carries the reason Windows gave. Error 10048 is another program already on the port, usually a game left running - close it and the mod takes the port on its next retry, under a second later, without you restarting anything.
-- `link: UDP 4242 listening` with no `receiving` line after it means nothing is sending to the port. Check the tracker is running and pointed at this machine on the port in `HeadTracking.ini`.
+- `link: UDP 4242 listening` with no `receiving` line after it means nothing is sending to the port. Check the tracker is running and pointed at this machine on `UdpPort` in `CameraUnlock.ini`.
 - Check tracking is not switched off with `End` or `Ctrl+Shift+Y`.
 
 **Jittery or unstable tracking:**
@@ -190,11 +258,11 @@ A windowed game is moved once to the center of the desktop work area on the moni
 
 ## Updating
 
-Download the new release and run `install.cmd` again. `HeadTracking.ini` is left alone, so your settings carry over.
+Download the new release and run `install.cmd` again. `CameraUnlock.ini` is left alone, so your settings carry over. Updating from a version that kept its settings in `HeadTracking.ini` imports them into `CameraUnlock.ini` at the first start and leaves `HeadTracking.ini` as it was.
 
 ## Uninstalling
 
-Run `uninstall.cmd`. This removes the mod files and its ini and logs. The loader is only removed if the installer put it there; `uninstall.cmd /force` removes it anyway.
+Run `uninstall.cmd`. This removes the mod files and its logs, and leaves `CameraUnlock.ini` and `HeadTracking.ini` in place, so your settings survive a reinstall. The loader is only removed if the installer put it there; `uninstall.cmd /force` removes it anyway.
 
 ## Building from Source
 

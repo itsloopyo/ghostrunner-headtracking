@@ -3,38 +3,25 @@
 
 #include "mod_hotkeys.h"
 
-#include <algorithm>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
-#include <windows.h>
-
+#include "hotkey_overlap.h"
 #include "logging.h"
 #include "view_hook.h"
 
-#include "cameraunlock/input/chord_hotkeys.h"
 #include "cameraunlock/input/hotkey_poller.h"
+#include "cameraunlock/input/key_binding_registration.h"
+#include "cameraunlock/input/key_bindings.h"
 
 namespace gr_ht::hotkeys {
 
 namespace {
 
 using cameraunlock::TrackingMode;
-using cameraunlock::input::ChordGuarded;
-using cameraunlock::input::NavGuarded;
-
-// Virtual-key codes. The nav-cluster defaults and the Ctrl+Shift chord cluster
-// (T/Y/U/G/H/J) are the fleet-wide bindings from AGENTS.md.
-//
-// Ghostrunner's own action mappings leave Y, U, G, H and J unbound - the only
-// letter of the cluster it uses is T, for the upgrade menu, which the fleet
-// keeps free anyway - so the three chords here are the standard ones with no
-// substitutions.
-constexpr int kVkEnd      = 0x23;
-constexpr int kVkPageUp   = 0x21;
-constexpr int kVkY        = 0x59;
-constexpr int kVkG        = 0x47;
-constexpr int kVkH        = 0x48;
+using cameraunlock::input::KeyBinding;
 
 // How often the poller samples the keyboard, in milliseconds.
 constexpr unsigned kPollIntervalMs = 16;
@@ -44,57 +31,88 @@ Session* g_session = nullptr;
 
 }  // namespace
 
+// End changes this session only; EnableOnStartup decides the next one.
 void ToggleTracking() {
     const bool enabled = !view_hook::TrackingEnabled();
     view_hook::SetTrackingEnabled(enabled);
     Log::Line("hotkey: tracking %s", enabled ? "ON" : "OFF");
 }
 
+// The session's mode is an atomic the render thread reads each frame, so the
+// cycle applies it here and then saves it.
 void CycleTrackingMode() {
     const TrackingMode mode = g_session->CycleMode();
     const char* name = mode == TrackingMode::RotationOnly ? "rotation only"
                      : mode == TrackingMode::PositionOnly ? "position only"
                                                           : "rotation and position";
     Log::Line("hotkey: tracking mode -> %s", name);
+    config::SaveTrackingMode(mode);
 }
 
 void ToggleYawMode() {
     const bool worldSpaceYaw = !view_hook::WorldSpaceYaw();
     view_hook::SetWorldSpaceYaw(worldSpaceYaw);
     Log::Line("hotkey: yaw mode %s", worldSpaceYaw ? "world" : "local");
+    config::SaveWorldSpaceYaw(worldSpaceYaw);
 }
+
+namespace {
+
+// The table's hotkey codec only lets through a list this parser reads.
+std::vector<KeyBinding> Bindings(const char* key, const std::string& list) {
+    const cameraunlock::input::KeyBindingsParseResult parsed = cameraunlock::input::ParseKeyBindings(list);
+    if (!parsed.ok()) throw std::logic_error(std::string(key) + "='" + list + "': " + parsed.error);
+    return parsed.bindings;
+}
+
+struct Claim {
+    KeyBinding binding;
+    const char* key;
+};
+
+// Registers the bindings of `list` that no earlier action's binding fires
+// together with, and records them in `claims`. The poller runs every action on a
+// key, so a clash (a player's YawModeKey=End, or a Defaults.ini ToggleKey
+// holding PageUp) would fire two actions on one press; the earlier action keeps
+// the key and the log says which binding was left out.
+void RegisterUnclaimed(std::vector<Claim>& claims, const char* key, const std::string& list, void (*action)()) {
+    std::vector<KeyBinding> kept;
+    for (const KeyBinding& binding : Bindings(key, list)) {
+        const Claim* clash = nullptr;
+        for (const Claim& claim : claims) {
+            if (hotkey_overlap::FireTogether(claim.binding, binding)) {
+                clash = &claim;
+                break;
+            }
+        }
+        if (clash) {
+            Log::Line("hotkey: %s's %s fires on the same press as %s's %s - it is not bound this session", key,
+                      cameraunlock::input::FormatKeyBindings({binding}).c_str(), clash->key,
+                      cameraunlock::input::FormatKeyBindings({clash->binding}).c_str());
+            continue;
+        }
+        kept.push_back(binding);
+    }
+    for (const KeyBinding& binding : kept) claims.push_back({binding, key});
+    cameraunlock::input::RegisterKeyBindings(*g_poller, kept, action);
+}
+
+}  // namespace
 
 void Register(const Config& config, Session& session) {
     g_session = &session;
     g_poller = std::make_unique<cameraunlock::input::HotkeyPoller>();
 
-    // Nav-cluster defaults. Suppressed when Ctrl+Shift is held so the chord
-    // path is the sole trigger.
-    //
-    // One action per key. The poller fires EVERY entry bound to a code, so a
-    // second action on a code already taken would run alongside the first on a
-    // single press - and the one key the INI does let a player change sits
-    // directly under a comment naming End and Page Up, which are fixed. A
-    // collision is refused with a line rather than bound anyway.
-    std::vector<int> navKeys{kVkEnd, kVkPageUp};
-    const auto addNav = [&](int vk, const char* key, void (*action)()) {
-        if (std::find(navKeys.begin(), navKeys.end(), vk) != navKeys.end()) {
-            Log::Line("hotkey: [Hotkeys] %s=0x%02X is a key another action already has - "
-                      "%s is not bound to it this session", key, vk, key);
-            return;
-        }
-        navKeys.push_back(vk);
-        g_poller->AddHotkey(vk, NavGuarded(action));
-    };
-
-    g_poller->AddHotkey(kVkEnd,    NavGuarded([] { ToggleTracking(); }));
-    g_poller->AddHotkey(kVkPageUp, NavGuarded([] { CycleTrackingMode(); }));
-    addNav(config.yaw_mode_key, "YawMode", &ToggleYawMode);
-
-    // Ctrl+Shift chord alternatives, for keyboards with no nav cluster.
-    g_poller->AddHotkey(kVkY, ChordGuarded([] { ToggleTracking(); }));
-    g_poller->AddHotkey(kVkG, ChordGuarded([] { CycleTrackingMode(); }));
-    g_poller->AddHotkey(kVkH, ChordGuarded([] { ToggleYawMode(); }));
+    // Each list holds every key that fires its action, the Ctrl+Shift chord
+    // included. Within a list a key without modifiers stays silent while Ctrl and
+    // Shift are both held; across lists RegisterUnclaimed keeps one press to one
+    // action, in this order.
+    std::vector<Claim> claims;
+    RegisterUnclaimed(claims, "ToggleKey", config.toggle_key, &ToggleTracking);
+    RegisterUnclaimed(claims, "CycleTrackingModeKey", config.cycle_tracking_mode_key, &CycleTrackingMode);
+    RegisterUnclaimed(claims, "YawModeKey", config.yaw_mode_key, &ToggleYawMode);
+    Log::Line("hotkey: toggle=[%s] cycle tracking mode=[%s] yaw mode=[%s]", config.toggle_key.c_str(),
+              config.cycle_tracking_mode_key.c_str(), config.yaw_mode_key.c_str());
 
     g_poller->Start(kPollIntervalMs);
 }
