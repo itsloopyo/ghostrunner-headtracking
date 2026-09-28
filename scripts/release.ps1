@@ -107,7 +107,9 @@ try {
     # touched - a failure here leaves a clean tree instead of stranding a
     # half-applied bump with no tag.
     try {
-        New-ChangelogFromCommits -ChangelogPath 'CHANGELOG.md' -Version $new -Maintenance:$Force | Out-Null
+        New-ChangelogFromCommits -ChangelogPath 'CHANGELOG.md' -Version $new `
+            -ArtifactPaths @('src/', 'cameraunlock-core/', 'scripts/install.cmd', 'scripts/uninstall.cmd') `
+            -Maintenance:$Force | Out-Null
     } catch {
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
         if (-not $Force) {
