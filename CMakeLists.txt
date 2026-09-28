@@ -270,6 +270,7 @@ if(GR_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/config_differential/lint-migrated.mjs
         $<TARGET_FILE_DIR:gr_config_differential_tests>/migrated)
     set_tests_properties(gr_config_lint PROPERTIES DEPENDS gr_config_differential_tests)
+    set_tests_properties(gr_config_differential_tests gr_config_lint PROPERTIES LABELS differential)
 
     # Which bindings in two actions' key lists one press fires together, the rule
     # the hotkey registration uses to keep a key to one action. Header-only over
